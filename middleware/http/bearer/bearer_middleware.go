@@ -62,11 +62,13 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(h fasthttp.R
 				return
 			}
 			rawToken := authHeader[bearerPrefixLength:]
-			_, err := verifier.Verify(ctx, rawToken)
+			idToken, err := verifier.Verify(ctx, rawToken)
 			if err != nil {
 				ctx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
 				return
 			}
+
+			ctx.SetUserValue("id_token", *idToken)
 
 			h(ctx)
 		}
