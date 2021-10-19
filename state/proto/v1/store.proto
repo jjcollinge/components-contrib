@@ -1,0 +1,97 @@
+// ------------------------------------------------------------
+// Copyright (c) Microsoft Corporation and Dapr Contributors.
+// Licensed under the MIT License.
+// ------------------------------------------------------------
+
+syntax = "proto3";
+
+package components.proto.state.v1;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/dapr/components-contrib/state/proto/v1;state";
+
+// TODO: Use commonv1pb where suitable.
+
+// Store service provides a gRPC interface for state store components.
+service Store {
+    rpc Init(MetadataRequest) returns (google.protobuf.Empty) {}
+  
+    rpc Features(google.protobuf.Empty) returns (FeaturesResponse) {}
+  
+    rpc Delete(DeleteRequest) returns (google.protobuf.Empty) {}
+  
+    rpc Get(GetRequest) returns (GetResponse) {}
+  
+    rpc Set(SetRequest) returns (google.protobuf.Empty) {}
+  
+    rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  
+    rpc BulkDelete(BulkDeleteRequest) returns (google.protobuf.Empty) {}
+  
+    rpc BulkGet(BulkGetRequest) returns (BulkGetResponse) {}
+  
+    rpc BulkSet(BulkSetRequest) returns (google.protobuf.Empty) {}
+  }
+
+message MetadataRequest {
+  map<string, string> properties = 1;
+}
+
+message FeaturesResponse {
+  repeated string feature = 1;
+}
+
+message GetRequest {
+  string key = 1;
+  map<string, string> metadata = 2;
+  string consistency = 3;
+}
+
+message GetResponse {
+  bytes data = 1;
+  string etag = 2;
+  map<string, string> metadata = 3;
+}
+
+message DeleteRequest {
+  string key = 1;
+  string etag = 2;
+  map<string, string> metadata = 3;
+  string concurrency = 4;
+  string consistency = 5;
+}
+
+message SetRequest {
+  string key = 1;
+  bytes value = 2;
+  string etag = 3;
+  map<string, string> metadata = 4;
+  string concurrency = 5;
+  string consistency = 6;
+}
+
+message BulkDeleteRequest {
+    repeated DeleteRequest requests = 1;
+}
+
+message BulkGetRequest {
+    repeated GetRequest requests = 1;
+}
+
+message GetResponseWithError {
+    bytes data = 1;
+    string etag = 2;
+    map<string, string> metadata = 3;
+    string key = 4;
+    string error = 5;
+}
+
+message BulkGetResponse {
+    repeated GetResponseWithError responses = 1;
+    bool got = 2;
+}
+
+message BulkSetRequest {
+    repeated SetRequest requests = 1;
+}
