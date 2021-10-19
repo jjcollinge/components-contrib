@@ -32,7 +32,10 @@ func (e *ExternalStore) Init(metadata state.Metadata) error {
 	}
 	address := metadata.Properties[externalAddressMetadataKey]
 
-	// TODO: Need a Close method to close the gRPC connection.
+	// TODO:
+	// * Need a Close method to close the gRPC connection.
+	// * Security
+	// * Tracing
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
 		panic(err)
