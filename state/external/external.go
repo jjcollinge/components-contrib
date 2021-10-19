@@ -12,6 +12,10 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+const (
+	externalAddressMetadataKey = "externalAddress"
+)
+
 type ExternalStore struct {
 	client statev1pb.StoreClient
 }
@@ -23,10 +27,10 @@ func New() *ExternalStore {
 
 func (e *ExternalStore) Init(metadata state.Metadata) error {
 	// TODO: Define a better convention for loaded this config.
-	if metadata.Properties["external:address"] == "" {
+	if metadata.Properties[externalAddressMetadataKey] == "" {
 		return errors.New("external state store: service address missing.")
 	}
-	address := metadata.Properties["external:address"]
+	address := metadata.Properties[externalAddressMetadataKey]
 
 	// TODO: Need a Close method to close the gRPC connection.
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
