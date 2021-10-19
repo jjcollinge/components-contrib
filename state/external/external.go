@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"strings"
 
 	"github.com/dapr/components-contrib/state"
 	statev1pb "github.com/dapr/components-contrib/state/proto/v1"
+	"github.com/dapr/dapr/pkg/proto/common/v1"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -68,52 +70,98 @@ func (e *ExternalStore) Features() []state.Feature {
 
 	return features
 }
-
 func (e *ExternalStore) Delete(deleteReq *state.DeleteRequest) error {
-	deleteReqPb := statev1pb.DeleteRequest{
-		Key:         deleteReq.Key,
-		Etag:        GetEtag(deleteReq.ETag),
-		Metadata:    deleteReq.Metadata,
-		Concurrency: deleteReq.Options.Concurrency,
-		Consistency: deleteReq.Options.Consistency,
+	item := statev1pb.DeleteRequest{
+		Key:      deleteReq.Key,
+		Metadata: deleteReq.Metadata,
 	}
 
-	_, err := e.client.Delete(context.TODO(), &deleteReqPb)
+	var opts *common.StateOptions
+	if deleteReq.Options.Concurrency != "" {
+		if opts == nil {
+			opts = &common.StateOptions{}
+		}
+
+		opts.Concurrency = ConcurrencyToPb(deleteReq.Options.Concurrency)
+	}
+	if deleteReq.Options.Consistency != "" {
+		if opts == nil {
+			opts = &common.StateOptions{}
+		}
+
+		opts.Consistency = ConsistencyToPb(deleteReq.Options.Consistency)
+	}
+
+	item.Options = opts
+
+	if deleteReq.ETag != nil {
+		item.Etag = &common.Etag{
+			Value: *deleteReq.ETag,
+		}
+	}
+
+	_, err := e.client.Delete(context.TODO(), &item)
 	return err
 }
 
 func (e *ExternalStore) Get(getReq *state.GetRequest) (*state.GetResponse, error) {
-	getReqPb := statev1pb.GetRequest{
+	item := statev1pb.GetRequest{
 		Key:         getReq.Key,
 		Metadata:    getReq.Metadata,
-		Consistency: getReq.Options.Consistency,
+		Consistency: ConsistencyToPb(getReq.Options.Consistency),
 	}
 
-	res, err := e.client.Get(context.TODO(), &getReqPb)
+	res, err := e.client.Get(context.TODO(), &item)
 	if err != nil {
 		return nil, err
 	}
-	return &state.GetResponse{
+	getRes := state.GetResponse{
 		Data:     res.Data,
-		ETag:     &res.Etag,
 		Metadata: res.Metadata,
-	}, nil
+	}
+
+	if res.Etag != nil {
+		getRes.ETag = &res.Etag.Value
+	}
+
+	return &getRes, nil
 }
 
 func (e *ExternalStore) Set(setReq *state.SetRequest) error {
 	// TODO: Is this a valid decoding?
 	val := setReq.Value.([]byte)
 
-	setReqPb := statev1pb.SetRequest{
-		Key:         setReq.Key,
-		Value:       val,
-		Etag:        GetEtag(setReq.ETag),
-		Metadata:    setReq.Metadata,
-		Concurrency: setReq.Options.Concurrency,
-		Consistency: setReq.Options.Consistency,
+	item := statev1pb.SetRequest{
+		Key:      setReq.Key,
+		Value:    val,
+		Metadata: setReq.Metadata,
 	}
 
-	_, err := e.client.Set(context.TODO(), &setReqPb)
+	var opts *common.StateOptions
+	if setReq.Options.Concurrency != "" {
+		if opts == nil {
+			opts = &common.StateOptions{}
+		}
+
+		opts.Concurrency = ConcurrencyToPb(setReq.Options.Concurrency)
+	}
+	if setReq.Options.Consistency != "" {
+		if opts == nil {
+			opts = &common.StateOptions{}
+		}
+
+		opts.Consistency = ConsistencyToPb(setReq.Options.Consistency)
+	}
+
+	item.Options = opts
+
+	if setReq.ETag != nil {
+		item.Etag = &common.Etag{
+			Value: *setReq.ETag,
+		}
+	}
+
+	_, err := e.client.Set(context.TODO(), &item)
 	return err
 }
 
@@ -122,72 +170,103 @@ func (e *ExternalStore) Ping() error {
 	return err
 }
 
-func (e *ExternalStore) BulkDelete(deleteReq []state.DeleteRequest) error {
-	deleteReqsPb := make([]*statev1pb.DeleteRequest, len(deleteReq))
-	for _, dr := range deleteReq {
-		deleteReqsPb = append(deleteReqsPb, &statev1pb.DeleteRequest{
-			Key:         dr.Key,
-			Metadata:    dr.Metadata,
-			Consistency: dr.Options.Consistency,
-			Concurrency: dr.Options.Concurrency,
-		})
+func (e *ExternalStore) BulkDelete(deleteReqs []state.DeleteRequest) error {
+	deleteReqsPb := make([]*statev1pb.DeleteRequest, len(deleteReqs))
+	for _, delReq := range deleteReqs {
+		item := statev1pb.DeleteRequest{
+			Key:      delReq.Key,
+			Metadata: delReq.Metadata,
+		}
+
+		var opts *common.StateOptions
+		if delReq.Options.Concurrency != "" {
+			if opts == nil {
+				opts = &common.StateOptions{}
+			}
+
+			opts.Concurrency = ConcurrencyToPb(delReq.Options.Concurrency)
+		}
+		if delReq.Options.Consistency != "" {
+			if opts == nil {
+				opts = &common.StateOptions{}
+			}
+
+			opts.Consistency = ConsistencyToPb(delReq.Options.Consistency)
+		}
+
+		item.Options = opts
+		deleteReqsPb = append(deleteReqsPb, &item)
 	}
 	_, err := e.client.BulkDelete(context.TODO(), &statev1pb.BulkDeleteRequest{
-		Requests: deleteReqsPb,
+		Items: deleteReqsPb,
 	})
 	return err
 }
 
-func (e *ExternalStore) BulkGet(getReq []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	getReqsPb := make([]*statev1pb.GetRequest, len(getReq))
-	for _, gr := range getReq {
+func (e *ExternalStore) BulkGet(getReqs []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	getReqsPb := make([]*statev1pb.GetRequest, len(getReqs))
+	for _, getReq := range getReqs {
 		getReqsPb = append(getReqsPb, &statev1pb.GetRequest{
-			Key:         gr.Key,
-			Metadata:    gr.Metadata,
-			Consistency: gr.Options.Consistency,
+			Key:         getReq.Key,
+			Metadata:    getReq.Metadata,
+			Consistency: ConsistencyToPb(getReq.Options.Consistency),
 		})
 	}
 	res, err := e.client.BulkGet(context.TODO(), &statev1pb.BulkGetRequest{
-		Requests: getReqsPb,
+		Items: getReqsPb,
 	})
 	if err != nil {
 		return false, nil, err
 	}
 
-	bgr := make([]state.BulkGetResponse, len(res.Responses))
-	for _, rs := range res.Responses {
-		bgr = append(bgr, state.BulkGetResponse{
+	bgr := make([]state.BulkGetResponse, len(res.Items))
+	for _, rs := range res.Items {
+		bulkGetRes := state.BulkGetResponse{
 			Key:      rs.Key,
 			Data:     rs.Data,
 			Metadata: rs.Metadata,
-			ETag:     &rs.Etag,
 			Error:    rs.Error,
-		})
+		}
+
+		if rs.Etag != nil {
+			bulkGetRes.ETag = &rs.Etag.Value
+		}
+
+		bgr = append(bgr, bulkGetRes)
 	}
 	return res.Got, bgr, nil
 }
 
-func (e *ExternalStore) BulkSet(setReq []state.SetRequest) error {
-	setReqsPb := make([]*statev1pb.SetRequest, len(setReq))
-	for _, sr := range setReq {
-		// TODO: Is this a valid decoding?
-		valBytes, err := GetBytes(sr.Value)
+func (e *ExternalStore) BulkSet(setReqs []state.SetRequest) error {
+	setReqsPb := make([]*statev1pb.SetRequest, len(setReqs))
+	for _, setReq := range setReqs {
+		// TODO: Fix data encoding/decoding.
+		valBytes, err := GetBytes(setReq.Value)
 		if err != nil {
 			return err
 		}
 
-		setReqsPb = append(setReqsPb, &statev1pb.SetRequest{
-			Key:         sr.Key,
-			Etag:        GetEtag(sr.ETag),
-			Metadata:    sr.Metadata,
-			Value:       valBytes,
-			Concurrency: sr.Options.Concurrency,
-			Consistency: sr.Options.Consistency,
-		})
+		s := &statev1pb.SetRequest{
+			Key:      setReq.Key,
+			Metadata: setReq.Metadata,
+			Value:    valBytes,
+			Options: &common.StateOptions{
+				Concurrency: ConcurrencyToPb(setReq.Options.Concurrency),
+				Consistency: ConsistencyToPb(setReq.Options.Consistency),
+			},
+		}
+
+		if setReq.ETag != nil {
+			s.Etag = &common.Etag{
+				Value: *setReq.ETag,
+			}
+		}
+
+		setReqsPb = append(setReqsPb, s)
 	}
 
 	_, err := e.client.BulkSet(context.TODO(), &statev1pb.BulkSetRequest{
-		Requests: setReqsPb,
+		Items: setReqsPb,
 	})
 
 	return err
@@ -207,10 +286,30 @@ func GetBytes(data interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func GetEtag(etagPtr *string) string {
-	var etag string
-	if etagPtr != nil {
-		etag = *etagPtr
+// TODO: Do this in a better way.
+func ConcurrencyToPb(concurrency string) common.StateOptions_StateConcurrency {
+	switch strings.ToLower(concurrency) {
+	case "unspecified":
+		return 0
+	case "first_write":
+		return 1
+	case "last_write":
+		return 2
+	default:
+		return 1 // TODO: What's the right default?
 	}
-	return etag
+}
+
+// TODO: Do this in a better way.
+func ConsistencyToPb(consistency string) common.StateOptions_StateConsistency {
+	switch strings.ToLower(consistency) {
+	case "unspecified":
+		return 0
+	case "eventual":
+		return 1
+	case "strong":
+		return 2
+	default:
+		return 1 // TODO: What's the right default?
+	}
 }
