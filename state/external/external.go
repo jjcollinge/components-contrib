@@ -17,23 +17,28 @@ type ExternalStore struct {
 }
 
 func New() *ExternalStore {
-	conn, err := grpc.Dial("localhost:9191", grpc.WithInsecure())
-	if err != nil {
-		panic(err)
-	}
-	// TODO: Need a Close method to close the gRPC connection.
-
-	client := statev1pb.NewStoreClient(conn)
-	return &ExternalStore{
-		client: client,
-	}
+	// Cannot initialize gRPC client here as don't have metadata.
+	return &ExternalStore{}
 }
 
 func (e *ExternalStore) Init(metadata state.Metadata) error {
+	// TODO: Define a better convention for loaded this config.
+	if metadata.Properties["external:address"] == "" {
+		return errors.New("external state store: service address missing.")
+	}
+	address := metadata.Properties["external:address"]
+
+	// TODO: Need a Close method to close the gRPC connection.
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		panic(err)
+	}
+	e.client = statev1pb.NewStoreClient(conn)
+
 	req := statev1pb.MetadataRequest{
 		Properties: metadata.Properties,
 	}
-	_, err := e.client.Init(context.TODO(), &req)
+	_, err = e.client.Init(context.TODO(), &req)
 	return errors.Wrap(err, "error calling remote init")
 }
 
