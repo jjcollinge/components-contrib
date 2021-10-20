@@ -1,9 +1,8 @@
 package external
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
+	"encoding/json"
 	"strings"
 
 	"github.com/dapr/components-contrib/state"
@@ -33,6 +32,9 @@ func (e *ExternalStore) Init(metadata state.Metadata) error {
 		return errors.New("external state store: service address missing.")
 	}
 	address := metadata.Properties[externalAddressMetadataKey]
+
+	// Remove external address key from metadata
+	delete(metadata.Properties, externalAddressMetadataKey)
 
 	// TODO:
 	// * Need a Close method to close the gRPC connection.
@@ -70,48 +72,31 @@ func (e *ExternalStore) Features() []state.Feature {
 
 	return features
 }
-func (e *ExternalStore) Delete(deleteReq *state.DeleteRequest) error {
-	item := statev1pb.DeleteRequest{
-		Key:      deleteReq.Key,
-		Metadata: deleteReq.Metadata,
+
+func (e *ExternalStore) Delete(req *state.DeleteRequest) error {
+	delReq := statev1pb.DeleteRequest{
+		Key:      req.Key,
+		Metadata: req.Metadata,
+		Options:  stateOptionsPbFromOptions(req.Options.Concurrency, req.Options.Consistency),
 	}
-
-	var opts *common.StateOptions
-	if deleteReq.Options.Concurrency != "" {
-		if opts == nil {
-			opts = &common.StateOptions{}
-		}
-
-		opts.Concurrency = ConcurrencyToPb(deleteReq.Options.Concurrency)
-	}
-	if deleteReq.Options.Consistency != "" {
-		if opts == nil {
-			opts = &common.StateOptions{}
-		}
-
-		opts.Consistency = ConsistencyToPb(deleteReq.Options.Consistency)
-	}
-
-	item.Options = opts
-
-	if deleteReq.ETag != nil {
-		item.Etag = &common.Etag{
-			Value: *deleteReq.ETag,
+	if req.ETag != nil {
+		delReq.Etag = &common.Etag{
+			Value: *req.ETag,
 		}
 	}
 
-	_, err := e.client.Delete(context.TODO(), &item)
+	_, err := e.client.Delete(context.TODO(), &delReq)
 	return err
 }
 
-func (e *ExternalStore) Get(getReq *state.GetRequest) (*state.GetResponse, error) {
-	item := statev1pb.GetRequest{
-		Key:         getReq.Key,
-		Metadata:    getReq.Metadata,
-		Consistency: ConsistencyToPb(getReq.Options.Consistency),
+func (e *ExternalStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+	getReq := statev1pb.GetRequest{
+		Key:         req.Key,
+		Metadata:    req.Metadata,
+		Consistency: stateConsistencyFromString(req.Options.Consistency),
 	}
 
-	res, err := e.client.Get(context.TODO(), &item)
+	res, err := e.client.Get(context.TODO(), &getReq)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +104,6 @@ func (e *ExternalStore) Get(getReq *state.GetRequest) (*state.GetResponse, error
 		Data:     res.Data,
 		Metadata: res.Metadata,
 	}
-
 	if res.Etag != nil {
 		getRes.ETag = &res.Etag.Value
 	}
@@ -127,41 +111,23 @@ func (e *ExternalStore) Get(getReq *state.GetRequest) (*state.GetResponse, error
 	return &getRes, nil
 }
 
-func (e *ExternalStore) Set(setReq *state.SetRequest) error {
+func (e *ExternalStore) Set(req *state.SetRequest) error {
 	// TODO: Is this a valid decoding?
-	val := setReq.Value.([]byte)
+	val := req.Value.([]byte)
 
-	item := statev1pb.SetRequest{
-		Key:      setReq.Key,
+	setReq := statev1pb.SetRequest{
+		Key:      req.Key,
 		Value:    val,
-		Metadata: setReq.Metadata,
+		Metadata: req.Metadata,
+		Options:  stateOptionsPbFromOptions(req.Options.Concurrency, req.Options.Consistency),
 	}
-
-	var opts *common.StateOptions
-	if setReq.Options.Concurrency != "" {
-		if opts == nil {
-			opts = &common.StateOptions{}
-		}
-
-		opts.Concurrency = ConcurrencyToPb(setReq.Options.Concurrency)
-	}
-	if setReq.Options.Consistency != "" {
-		if opts == nil {
-			opts = &common.StateOptions{}
-		}
-
-		opts.Consistency = ConsistencyToPb(setReq.Options.Consistency)
-	}
-
-	item.Options = opts
-
-	if setReq.ETag != nil {
-		item.Etag = &common.Etag{
-			Value: *setReq.ETag,
+	if req.ETag != nil {
+		setReq.Etag = &common.Etag{
+			Value: *req.ETag,
 		}
 	}
 
-	_, err := e.client.Set(context.TODO(), &item)
+	_, err := e.client.Set(context.TODO(), &setReq)
 	return err
 }
 
@@ -170,103 +136,92 @@ func (e *ExternalStore) Ping() error {
 	return err
 }
 
-func (e *ExternalStore) BulkDelete(deleteReqs []state.DeleteRequest) error {
-	deleteReqsPb := make([]*statev1pb.DeleteRequest, len(deleteReqs))
-	for _, delReq := range deleteReqs {
-		item := statev1pb.DeleteRequest{
-			Key:      delReq.Key,
-			Metadata: delReq.Metadata,
+func (e *ExternalStore) BulkDelete(reqs []state.DeleteRequest) error {
+	deleteReqs := make([]*statev1pb.DeleteRequest, len(reqs))
+	for _, req := range reqs {
+		deleteReq := statev1pb.DeleteRequest{
+			Key:      req.Key,
+			Metadata: req.Metadata,
+			Options:  stateOptionsPbFromOptions(req.Options.Concurrency, req.Options.Consistency),
 		}
-
-		var opts *common.StateOptions
-		if delReq.Options.Concurrency != "" {
-			if opts == nil {
-				opts = &common.StateOptions{}
-			}
-
-			opts.Concurrency = ConcurrencyToPb(delReq.Options.Concurrency)
-		}
-		if delReq.Options.Consistency != "" {
-			if opts == nil {
-				opts = &common.StateOptions{}
-			}
-
-			opts.Consistency = ConsistencyToPb(delReq.Options.Consistency)
-		}
-
-		item.Options = opts
-		deleteReqsPb = append(deleteReqsPb, &item)
+		deleteReqs = append(deleteReqs, &deleteReq)
 	}
 	_, err := e.client.BulkDelete(context.TODO(), &statev1pb.BulkDeleteRequest{
-		Items: deleteReqsPb,
+		Items: deleteReqs,
 	})
 	return err
 }
 
-func (e *ExternalStore) BulkGet(getReqs []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	getReqsPb := make([]*statev1pb.GetRequest, len(getReqs))
-	for _, getReq := range getReqs {
-		getReqsPb = append(getReqsPb, &statev1pb.GetRequest{
-			Key:         getReq.Key,
-			Metadata:    getReq.Metadata,
-			Consistency: ConsistencyToPb(getReq.Options.Consistency),
+func (e *ExternalStore) BulkGet(reqs []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	getReqs := make([]*statev1pb.GetRequest, len(reqs))
+	for _, req := range reqs {
+		getReqs = append(getReqs, &statev1pb.GetRequest{
+			Key:         req.Key,
+			Metadata:    req.Metadata,
+			Consistency: stateConsistencyFromString(req.Options.Consistency),
 		})
 	}
 	res, err := e.client.BulkGet(context.TODO(), &statev1pb.BulkGetRequest{
-		Items: getReqsPb,
+		Items: getReqs,
 	})
 	if err != nil {
 		return false, nil, err
 	}
 
-	bgr := make([]state.BulkGetResponse, len(res.Items))
-	for _, rs := range res.Items {
+	bulkGetResponses := make([]state.BulkGetResponse, len(res.Items))
+	for _, item := range res.Items {
 		bulkGetRes := state.BulkGetResponse{
-			Key:      rs.Key,
-			Data:     rs.Data,
-			Metadata: rs.Metadata,
-			Error:    rs.Error,
+			Key:      item.Key,
+			Data:     item.Data,
+			Metadata: item.Metadata,
+			Error:    item.Error,
+		}
+		if item.Etag != nil {
+			bulkGetRes.ETag = &item.Etag.Value
 		}
 
-		if rs.Etag != nil {
-			bulkGetRes.ETag = &rs.Etag.Value
-		}
-
-		bgr = append(bgr, bulkGetRes)
+		bulkGetResponses = append(bulkGetResponses, bulkGetRes)
 	}
-	return res.Got, bgr, nil
+	return res.Got, bulkGetResponses, nil
 }
 
-func (e *ExternalStore) BulkSet(setReqs []state.SetRequest) error {
-	setReqsPb := make([]*statev1pb.SetRequest, len(setReqs))
-	for _, setReq := range setReqs {
-		// TODO: Fix data encoding/decoding.
-		valBytes, err := GetBytes(setReq.Value)
-		if err != nil {
-			return err
-		}
-
-		s := &statev1pb.SetRequest{
-			Key:      setReq.Key,
-			Metadata: setReq.Metadata,
-			Value:    valBytes,
-			Options: &common.StateOptions{
-				Concurrency: ConcurrencyToPb(setReq.Options.Concurrency),
-				Consistency: ConsistencyToPb(setReq.Options.Consistency),
-			},
-		}
-
-		if setReq.ETag != nil {
-			s.Etag = &common.Etag{
-				Value: *setReq.ETag,
+func (e *ExternalStore) BulkSet(reqs []state.SetRequest) error {
+	setReqs := make([]*statev1pb.SetRequest, len(reqs))
+	for _, req := range reqs {
+		var bytes []byte
+		var err error
+		if req.Value != nil {
+			// TODO:
+			// How should we encode the data to send to the
+			// external state store? It's already been unmarshalled
+			// in a Go struct here so we just marshal it back to a
+			// byte array for now and expect the remote state store
+			// to handle it.
+			bytes, err = json.Marshal(req.Value)
+			if err != nil {
+				return err
 			}
 		}
 
-		setReqsPb = append(setReqsPb, s)
+		setReq := &statev1pb.SetRequest{
+			Key:      req.Key,
+			Metadata: req.Metadata,
+			Value:    bytes,
+			Options: &common.StateOptions{
+				Concurrency: stateConcurrencyFromString(req.Options.Concurrency),
+				Consistency: stateConsistencyFromString(req.Options.Consistency),
+			},
+		}
+		if req.ETag != nil {
+			setReq.Etag = &common.Etag{
+				Value: *req.ETag,
+			}
+		}
+		setReqs = append(setReqs, setReq)
 	}
 
 	_, err := e.client.BulkSet(context.TODO(), &statev1pb.BulkSetRequest{
-		Items: setReqsPb,
+		Items: setReqs,
 	})
 
 	return err
@@ -276,18 +231,8 @@ func (e *ExternalStore) Multi(request *state.TransactionalStateRequest) error {
 	return errors.New("Not implemented!")
 }
 
-func GetBytes(data interface{}) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(data)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-// TODO: Do this in a better way.
-func ConcurrencyToPb(concurrency string) common.StateOptions_StateConcurrency {
+// TODO: Is there a better or existing way to map this?
+func stateConcurrencyFromString(concurrency string) common.StateOptions_StateConcurrency {
 	switch strings.ToLower(concurrency) {
 	case "unspecified":
 		return 0
@@ -296,12 +241,12 @@ func ConcurrencyToPb(concurrency string) common.StateOptions_StateConcurrency {
 	case "last_write":
 		return 2
 	default:
-		return 1 // TODO: What's the right default?
+		return 0
 	}
 }
 
-// TODO: Do this in a better way.
-func ConsistencyToPb(consistency string) common.StateOptions_StateConsistency {
+// TODO: Is there a better or existing way to map this?
+func stateConsistencyFromString(consistency string) common.StateOptions_StateConsistency {
 	switch strings.ToLower(consistency) {
 	case "unspecified":
 		return 0
@@ -310,6 +255,19 @@ func ConsistencyToPb(consistency string) common.StateOptions_StateConsistency {
 	case "strong":
 		return 2
 	default:
-		return 1 // TODO: What's the right default?
+		return 0
 	}
+}
+
+// TODO: Is there a better or existing way to map this?
+func stateOptionsPbFromOptions(concurrency, consistency string) *common.StateOptions {
+	var opts common.StateOptions
+	if concurrency != "" {
+		opts.Concurrency = stateConcurrencyFromString(concurrency)
+	}
+	if consistency != "" {
+		opts.Consistency = stateConsistencyFromString(consistency)
+	}
+
+	return &opts
 }
