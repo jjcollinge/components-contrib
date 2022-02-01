@@ -14,7 +14,9 @@ limitations under the License.
 package mdns
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -27,6 +29,7 @@ import (
 	"github.com/grandcat/zeroconf"
 
 	"github.com/dapr/components-contrib/nameresolution"
+	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
 
@@ -45,6 +48,13 @@ const (
 	addressTTL = time.Second * 60
 	// max integer value supported on this architecture.
 	maxInt = int(^uint(0) >> 1)
+)
+
+var (
+	iPv4AndIPv6   = zeroconf.IPType(zeroconf.IPv4AndIPv6)
+	iPv4          = zeroconf.IPType(zeroconf.IPv4)
+	iPv6          = zeroconf.IPType(zeroconf.IPv6)
+	defaultIPType = iPv4AndIPv6
 )
 
 // address is used to store an ip address along with
@@ -155,6 +165,8 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 }
 
 type resolver struct {
+	cfg              ConfigSpec
+	ipType           zeroconf.IPType
 	ipv4Mu           sync.RWMutex
 	appAddressesIPv4 map[string]*addressList
 	ipv6Mu           sync.RWMutex
@@ -193,12 +205,52 @@ func (m *resolver) Init(metadata nameresolution.Metadata) error {
 		instanceID = ""
 	}
 
+	m.cfg, err = getConfig(metadata.Configuration)
+	if err != nil {
+		return err
+	}
+
+	// Calculate zeroconf IP type up front to avoid duplicate work.
+	if metadata.Configuration == nil || (!m.cfg.ListenOnIPv4 && !m.cfg.ListenOnIPv6) {
+		// If config is nil, zero or listen on isn't set, use default.
+		m.ipType = defaultIPType
+	} else {
+		if m.cfg.ListenOnIPv4 {
+			m.ipType |= zeroconf.IPv4
+		}
+		if m.cfg.ListenOnIPv6 {
+			m.ipType |= zeroconf.IPv6
+		}
+	}
+
 	err = m.registerMDNS(instanceID, appID, []string{hostAddress}, int(port))
 	if err == nil {
 		m.logger.Infof("local service entry announced: %s -> %s:%d", appID, hostAddress, port)
 	}
 
 	return err
+}
+
+func getConfig(rawConfig interface{}) (ConfigSpec, error) {
+	var cfg ConfigSpec
+	rawConfig, err := config.Normalize(rawConfig)
+	if err != nil {
+		return cfg, err
+	}
+
+	data, err := json.Marshal(rawConfig)
+	if err != nil {
+		return cfg, fmt.Errorf("error serializing to json: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&cfg); err != nil {
+		return cfg, fmt.Errorf("error deserializing to configSpec: %w", err)
+	}
+
+	return cfg, nil
 }
 
 func (m *resolver) registerMDNS(instanceID string, appID string, ips []string, port int) error {
@@ -385,7 +437,9 @@ func (m *resolver) refreshAllApps(ctx context.Context) error {
 
 // browse will perform a non-blocking mdns network browse for the provided app id.
 func (m *resolver) browse(ctx context.Context, appID string, onEach func(ip string)) error {
-	resolver, err := zeroconf.NewResolver(nil)
+	fmt.Printf("ipType: %x\n", m.ipType)
+	o := zeroconf.SelectIPTraffic(m.ipType)
+	resolver, err := zeroconf.NewResolver(o)
 	if err != nil {
 		return fmt.Errorf("failed to initialize resolver: %e", err)
 	}

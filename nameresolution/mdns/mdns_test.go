@@ -27,50 +27,205 @@ import (
 
 func TestInit(t *testing.T) {
 	tests := []struct {
-		missingProp string
-		props       map[string]string
+		testName string
+		metadata nr.Metadata
+		test     func(t *testing.T, md nr.Metadata)
 	}{
 		{
-			"name",
-			map[string]string{
-				nr.MDNSInstanceAddress: "127.0.0.1",
-				nr.MDNSInstancePort:    "30003",
+			"given missing instance address init should error",
+			nr.Metadata{
+				Properties: map[string]string{
+					nr.MDNSInstanceName: "testAppID",
+					nr.MDNSInstancePort: "30003",
+				},
+				Configuration: ConfigSpec{},
+			},
+			func(t *testing.T, md nr.Metadata) {
+				// arrange
+				r := NewResolver(logger.NewLogger("test"))
+
+				// act
+				err := r.Init(nr.Metadata{Properties: md.Properties, Configuration: md.Configuration})
+
+				// assert
+				assert.Errorf(t, err, "address is missing")
 			},
 		},
 		{
-			"address",
-			map[string]string{
-				nr.MDNSInstanceName: "testAppID",
-				nr.MDNSInstancePort: "30003",
+			"given missing instance port init should error",
+			nr.Metadata{
+				Properties: map[string]string{
+					nr.MDNSInstanceName:    "testAppID",
+					nr.MDNSInstanceAddress: "127.0.0.1",
+				},
+				Configuration: ConfigSpec{},
+			},
+			func(t *testing.T, md nr.Metadata) {
+				// arrange
+				r := NewResolver(logger.NewLogger("test"))
+
+				// act
+				err := r.Init(nr.Metadata{Properties: md.Properties, Configuration: md.Configuration})
+
+				// assert
+				assert.Errorf(t, err, "port is missing")
 			},
 		},
 		{
-			"port",
-			map[string]string{
-				nr.MDNSInstanceName:    "testAppID",
-				nr.MDNSInstanceAddress: "127.0.0.1",
+			"given invalid instance port init should error",
+			nr.Metadata{
+				Properties: map[string]string{
+					nr.MDNSInstanceName:    "testAppID",
+					nr.MDNSInstanceAddress: "127.0.0.1",
+					nr.MDNSInstancePort:    "abcd",
+				},
+				Configuration: ConfigSpec{},
+			},
+			func(t *testing.T, md nr.Metadata) {
+				// arrange
+				r := NewResolver(logger.NewLogger("test"))
+
+				// act
+				err := r.Init(nr.Metadata{Properties: md.Properties, Configuration: md.Configuration})
+
+				// assert
+				assert.Errorf(t, err, "port is invalid")
 			},
 		},
 		{
-			"port",
-			map[string]string{
-				nr.MDNSInstanceName:    "testAppID",
-				nr.MDNSInstanceAddress: "127.0.0.1",
-				nr.MDNSInstancePort:    "abcd",
+			"given a nil configuration init should not error and default ip type",
+			nr.Metadata{
+				Properties: map[string]string{
+					nr.MDNSInstanceName:    "testAppID",
+					nr.MDNSInstanceAddress: "127.0.0.1",
+					nr.MDNSInstancePort:    "3000",
+				},
+				Configuration: nil,
+			},
+			func(t *testing.T, md nr.Metadata) {
+				// arrange
+				r := NewResolver(logger.NewLogger("test"))
+
+				// act
+				err := r.Init(nr.Metadata{Properties: md.Properties, Configuration: md.Configuration})
+
+				// assert
+				assert.Nil(t, err)
+				mdnsResolver, ok := r.(*resolver)
+				assert.True(t, ok, "mdns resolver is not of type resolver")
+				assert.Equal(t, defaultIPType, mdnsResolver.ipType)
+			},
+		},
+		{
+			"given a zero configuration init should not error and default ip type",
+			nr.Metadata{
+				Properties: map[string]string{
+					nr.MDNSInstanceName:    "testAppID",
+					nr.MDNSInstanceAddress: "127.0.0.1",
+					nr.MDNSInstancePort:    "3000",
+				},
+				Configuration: nil,
+			},
+			func(t *testing.T, md nr.Metadata) {
+				// arrange
+				r := NewResolver(logger.NewLogger("test"))
+
+				// act
+				err := r.Init(nr.Metadata{Properties: md.Properties, Configuration: md.Configuration})
+
+				// assert
+				assert.Nil(t, err)
+				mdnsResolver, ok := r.(*resolver)
+				assert.True(t, ok, "mdns resolver is not of type resolver")
+				assert.Equal(t, defaultIPType, mdnsResolver.ipType)
+			},
+		},
+		{
+			"given a listen on IPv6 only configuration init should not error and set the correct ip type",
+			nr.Metadata{
+				Properties: map[string]string{
+					nr.MDNSInstanceName:    "testAppID",
+					nr.MDNSInstanceAddress: "127.0.0.1",
+					nr.MDNSInstancePort:    "3000",
+				},
+				Configuration: ConfigSpec{
+					ListenOnIPv6: true,
+				},
+			},
+			func(t *testing.T, md nr.Metadata) {
+				// arrange
+				r := NewResolver(logger.NewLogger("test"))
+
+				// act
+				err := r.Init(nr.Metadata{Properties: md.Properties, Configuration: md.Configuration})
+
+				// assert
+				assert.Nil(t, err)
+				mdnsResolver, ok := r.(*resolver)
+				assert.True(t, ok, "mdns resolver is not of type resolver")
+				assert.Equal(t, iPv6, mdnsResolver.ipType)
+			},
+		},
+		{
+			"given a listen on IPv4 only configuration init should not error and set the correct ip type",
+			nr.Metadata{
+				Properties: map[string]string{
+					nr.MDNSInstanceName:    "testAppID",
+					nr.MDNSInstanceAddress: "127.0.0.1",
+					nr.MDNSInstancePort:    "3000",
+				},
+				Configuration: ConfigSpec{
+					ListenOnIPv4: true,
+				},
+			},
+			func(t *testing.T, md nr.Metadata) {
+				// arrange
+				r := NewResolver(logger.NewLogger("test"))
+
+				// act
+				err := r.Init(nr.Metadata{Properties: md.Properties, Configuration: md.Configuration})
+
+				// assert
+				assert.Nil(t, err)
+				mdnsResolver, ok := r.(*resolver)
+				assert.True(t, ok, "mdns resolver is not of type resolver")
+				assert.Equal(t, iPv4, mdnsResolver.ipType)
+			},
+		},
+		{
+			"given a listen on both IPv4 and IPv6 configuration init should not error and set the correct ip type",
+			nr.Metadata{
+				Properties: map[string]string{
+					nr.MDNSInstanceName:    "testAppID",
+					nr.MDNSInstanceAddress: "127.0.0.1",
+					nr.MDNSInstancePort:    "3000",
+				},
+				Configuration: ConfigSpec{
+					ListenOnIPv4: true,
+					ListenOnIPv6: true,
+				},
+			},
+			func(t *testing.T, md nr.Metadata) {
+				// arrange
+				r := NewResolver(logger.NewLogger("test"))
+
+				// act
+				err := r.Init(nr.Metadata{Properties: md.Properties, Configuration: md.Configuration})
+
+				// assert
+				assert.Nil(t, err)
+				mdnsResolver, ok := r.(*resolver)
+				assert.True(t, ok, "mdns resolver is not of type resolver")
+				assert.Equal(t, iPv4AndIPv6, mdnsResolver.ipType)
 			},
 		},
 	}
 
 	// arrange
-	resolver := NewResolver(logger.NewLogger("test"))
 
 	for _, tt := range tests {
-		t.Run(tt.missingProp+" is missing", func(t *testing.T) {
-			// act
-			err := resolver.Init(nr.Metadata{Properties: tt.props})
-
-			// assert
-			assert.Error(t, err)
+		t.Run(tt.testName, func(t *testing.T) {
+			tt.test(t, tt.metadata)
 		})
 	}
 }
