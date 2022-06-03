@@ -75,23 +75,23 @@ type MongoDB struct {
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
-	metadata         mongoDBMetadata
+	metadata         MongoDBMetadata
 
 	features []state.Feature
 	logger   logger.Logger
 }
 
-type mongoDBMetadata struct {
-	host             string
-	username         string
-	password         string
-	databaseName     string
-	collectionName   string
-	server           string
-	writeconcern     string
-	readconcern      string
-	params           string
-	operationTimeout time.Duration
+type MongoDBMetadata struct {
+	host             string        `jsonschema:"title='host',description='mongodb host',required"`
+	username         string        `jsonschema:"title='username',description='mongodb username',required"`
+	password         string        `jsonschema:"title='password',description='mongodb password',required"`
+	databaseName     string        `jsonschema:"title='databaseName',description='mongodb database name',required"`
+	collectionName   string        `jsonschema:"title='collectionName',description='mongodb collection name',required"`
+	server           string        `jsonschema:"title='server',description='mongodb server',required"`
+	writeconcern     string        `jsonschema:"title='writeConcern',description='mongodb write concern',required"`
+	readconcern      string        `jsonschema:"title='readConcern',description='mongodb read concern',required"`
+	params           string        `jsonschema:"title='params',description='mongodb params',required"`
+	operationTimeout time.Duration `jsonschema:"title='operationTimeout',description='mongodb operation timeout',required"`
 }
 
 // Item is Mongodb document wrapper.
@@ -356,7 +356,7 @@ func (m *MongoDB) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
 	}, nil
 }
 
-func getMongoURI(metadata *mongoDBMetadata) string {
+func getMongoURI(metadata *MongoDBMetadata) string {
 	if len(metadata.server) != 0 {
 		if metadata.username != "" && metadata.password != "" {
 			return fmt.Sprintf(connectionURIFormatWithSrvAndCredentials, metadata.username, metadata.password, metadata.server, metadata.databaseName, metadata.params)
@@ -372,7 +372,7 @@ func getMongoURI(metadata *mongoDBMetadata) string {
 	return fmt.Sprintf(connectionURIFormat, metadata.host, metadata.databaseName, metadata.params)
 }
 
-func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
+func getMongoDBClient(metadata *MongoDBMetadata) (*mongo.Client, error) {
 	uri := getMongoURI(metadata)
 
 	// Set client options
@@ -397,8 +397,8 @@ func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	return client, nil
 }
 
-func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
-	meta := mongoDBMetadata{
+func getMongoDBMetaData(metadata state.Metadata) (*MongoDBMetadata, error) {
+	meta := MongoDBMetadata{
 		databaseName:     defaultDatabaseName,
 		collectionName:   defaultCollectionName,
 		operationTimeout: defaultTimeout,

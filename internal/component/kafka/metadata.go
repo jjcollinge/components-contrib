@@ -38,27 +38,27 @@ const (
 	noAuthType           = "none"
 )
 
-type kafkaMetadata struct {
-	Brokers              []string
-	ConsumerGroup        string
-	ClientID             string
-	AuthType             string
-	SaslUsername         string
-	SaslPassword         string
-	InitialOffset        int64
-	MaxMessageBytes      int
-	OidcTokenEndpoint    string
-	OidcClientID         string
-	OidcClientSecret     string
-	OidcScopes           []string
-	TLSDisable           bool
-	TLSSkipVerify        bool
-	TLSCaCert            string
-	TLSClientCert        string
-	TLSClientKey         string
-	ConsumeRetryEnabled  bool
-	ConsumeRetryInterval time.Duration
-	Version              sarama.KafkaVersion
+type KafkaMetadata struct {
+	Brokers              []string            `jsonschema:"title=brokers,description=The list of brokers, example=localhost:9092,required"`
+	ConsumerGroup        string              `jsonschema:"title=consumer group,description=The consumer group id, example=my-consumer-group,required"`
+	ClientID             string              `jsonschema:"title=client id,description=The client id, example=my-client-id,required"`
+	AuthType             string              `jsonschema:"title=auth type,description=The auth type, example=none,required"`
+	SaslUsername         string              `jsonschema:"title=sasl username,description=The sasl username, example=my-sasl-username,required"`
+	SaslPassword         string              `jsonschema:"title=sasl password,description=The sasl password, example=my-sasl-password,required"`
+	InitialOffset        int64               `jsonschema:"title=initial offset,description=The initial offset, example=0,required"`
+	MaxMessageBytes      int                 `jsonschema:"title=max message bytes,description=The max message bytes, example=1048576,required"`
+	OidcTokenEndpoint    string              `jsonschema:"title=oidc token endpoint,description=The oidc token endpoint, example=https://oidc.example.com/token,required"`
+	OidcClientID         string              `jsonschema:"title=oidc client id,description=The oidc client id, example=my-oidc-client-id,required"`
+	OidcClientSecret     string              `jsonschema:"title=oidc client secret,description=The oidc client secret, example=my-oidc-client-secret,required"`
+	OidcScopes           []string            `jsonschema:"title=oidc scopes,description=The oidc scopes, example=openid profile email,required"`
+	TLSDisable           bool                `jsonschema:"title=tls disable,description=The tls disable, example=false,required"`
+	TLSSkipVerify        bool                `jsonschema:"title=tls skip verify,description=The tls skip verify, example=false,required"`
+	TLSCaCert            string              `jsonschema:"title=tls ca cert,description=The tls ca cert, example=my-ca-cert,required"`
+	TLSClientCert        string              `jsonschema:"title=tls client cert,description=The tls client cert, example=my-client-cert,required"`
+	TLSClientKey         string              `jsonschema:"title=tls client key,description=The tls client key, example=my-client-key,required"`
+	ConsumeRetryEnabled  bool                `jsonschema:"title=consume retry enabled,description=The consume retry enabled, example=false,required"`
+	ConsumeRetryInterval time.Duration       `jsonschema:"title=consume retry interval,description=The consume retry interval, example=1s,required"`
+	Version              sarama.KafkaVersion `jsonschema:"title=version,description=The version, example=1.0.0,required"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
@@ -98,8 +98,8 @@ func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, 
 }
 
 // getKafkaMetadata returns new Kafka metadata.
-func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*kafkaMetadata, error) {
-	meta := kafkaMetadata{
+func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*KafkaMetadata, error) {
+	meta := KafkaMetadata{
 		ConsumeRetryInterval: 100 * time.Millisecond,
 	}
 	// use the runtimeConfig.ID as the consumer group so that each dapr runtime creates its own consumergroup

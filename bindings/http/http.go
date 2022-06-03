@@ -35,14 +35,14 @@ import (
 // HTTPSource is a binding for an http url endpoint invocation
 //revive:disable-next-line
 type HTTPSource struct {
-	metadata httpMetadata
+	metadata HttpMetadata
 	client   *http.Client
 
 	logger logger.Logger
 }
 
-type httpMetadata struct {
-	URL string `mapstructure:"url"`
+type HttpMetadata struct {
+	URL string `mapstructure:"url" jsonschema:"title=URL,description=URL to invoke,required=true"`
 }
 
 // NewHTTP returns a new HTTPSource.

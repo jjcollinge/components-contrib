@@ -44,7 +44,7 @@ const (
 // See https://redis.io/topics/streams-intro for more information
 // on the mechanics of Redis Streams.
 type redisStreams struct {
-	metadata       metadata
+	metadata       Metadata
 	client         redis.UniversalClient
 	clientSettings *rediscomponent.Settings
 	logger         logger.Logger
@@ -69,9 +69,9 @@ func NewRedisStreams(logger logger.Logger) pubsub.PubSub {
 	return &redisStreams{logger: logger}
 }
 
-func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
+func parseRedisMetadata(meta pubsub.Metadata) (Metadata, error) {
 	// Default values
-	m := metadata{
+	m := Metadata{
 		processingTimeout: 60 * time.Second,
 		redeliverInterval: 15 * time.Second,
 		queueDepth:        100,

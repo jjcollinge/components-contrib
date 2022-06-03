@@ -1,0 +1,1 @@
+{"$schema":"http://json-schema.org/draft/2020-12/schema","$id":"https://github.com/dapr/components-contrib/bindings/http/http-metadata","$ref":"#/$defs/HttpMetadata","$defs":{"HttpMetadata":{"properties":{"URL":{"type":"string","title":"URL","description":"URL to invoke"}},"additionalProperties":false,"type":"object","required":["URL"]}}}

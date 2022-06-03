@@ -1,0 +1,1 @@
+{"$schema":"http://json-schema.org/draft/2020-12/schema","$id":"https://github.com/dapr/components-contrib/pubsub/redis/metadata","$ref":"#/$defs/Metadata","$defs":{"Metadata":{"properties":{},"additionalProperties":false,"type":"object"}}}

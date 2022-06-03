@@ -83,7 +83,7 @@ func TestParseMetadata(t *testing.T) {
 	})
 }
 
-func assertMetadata(t *testing.T, meta *kafkaMetadata) {
+func assertMetadata(t *testing.T, meta *KafkaMetadata) {
 	require.Equal(t, "a", meta.Brokers[0])
 	require.Equal(t, "a", meta.ConsumerGroup)
 	require.Equal(t, "a", meta.ClientID)

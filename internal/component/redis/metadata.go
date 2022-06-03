@@ -31,10 +31,10 @@ const (
 )
 
 type Metadata struct {
-	MaxRetries      int
-	MaxRetryBackoff time.Duration
-	TTLInSeconds    *int
-	QueryIndexes    string
+	MaxRetries      int           `jsonschema:"title=max retries,description=The max retries, example=3"`
+	MaxRetryBackoff time.Duration `jsonschema:"title=max retry backoff,description=The max retry backoff, example=2s"`
+	TTLInSeconds    *int          `jsonschema:"title=ttl in seconds,description=The ttl in seconds, example=100"`
+	QueryIndexes    string        `jsonschema:"title=query indexes,description=The query indexes, example=my-index"`
 }
 
 func ParseRedisMetadata(properties map[string]string) (Metadata, error) {

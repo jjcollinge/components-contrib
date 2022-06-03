@@ -29,7 +29,7 @@ func updatePasswordAuthInfo(config *sarama.Config, saslUsername, saslPassword st
 	config.Net.SASL.Mechanism = sarama.SASLTypePlaintext
 }
 
-func updateMTLSAuthInfo(config *sarama.Config, metadata *kafkaMetadata) error {
+func updateMTLSAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
 	if metadata.TLSDisable {
 		return fmt.Errorf("kafka: cannot configure mTLS authentication when TLSDisable is 'true'")
 	}
@@ -41,7 +41,7 @@ func updateMTLSAuthInfo(config *sarama.Config, metadata *kafkaMetadata) error {
 	return nil
 }
 
-func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
+func updateTLSConfig(config *sarama.Config, metadata *KafkaMetadata) error {
 	if metadata.TLSDisable || metadata.AuthType == noAuthType {
 		config.Net.TLS.Enable = false
 		return nil
@@ -65,7 +65,7 @@ func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
 	return nil
 }
 
-func updateOidcAuthInfo(config *sarama.Config, metadata *kafkaMetadata) error {
+func updateOidcAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
 	tokenProvider := newOAuthTokenSource(metadata.OidcTokenEndpoint, metadata.OidcClientID, metadata.OidcClientSecret, metadata.OidcScopes)
 
 	if metadata.TLSCaCert != "" {

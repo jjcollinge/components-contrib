@@ -5,3 +5,5 @@ vendor
 .dccache
 go.work
 go.work.sum
+
+schemas/schemas
