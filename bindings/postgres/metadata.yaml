@@ -7,7 +7,7 @@ status: stable
 title: "PostgreSQL"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-bindings/postgres/
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/postgresql/
 capabilities: []
 binding:
   output: true
@@ -25,7 +25,7 @@ builtinAuthenticationProfiles:
       - name: useAzureAD
         required: true
         type: bool
-        example: '"true"'
+        example: "true"
         description: |
           Must be set to `true` to enable the component to retrieve access tokens from Azure AD.
           This authentication method only works with Azure Database for PostgreSQL databases.
@@ -43,7 +43,7 @@ builtinAuthenticationProfiles:
       - name: useAWSIAM
         required: true
         type: bool
-        example: '"true"'
+        example: "true"
         description: |
           Must be set to `true` to enable the component to retrieve access tokens from AWS IAM.
           This authentication method only works with AWS Relational Database Service for PostgreSQL databases.
@@ -63,7 +63,7 @@ builtinAuthenticationProfiles:
           Deprecated as of Dapr 1.17. Use 'accessKey' instead if using AWS IAM.
           If both fields are set, then 'accessKey' value will be used.
           AWS access key associated with an IAM account.
-        example: '"AKIAIOSFODNN7EXAMPLE"'
+        example: "AKIAIOSFODNN7EXAMPLE"
       - name: awsSecretKey
         type: string
         required: false
@@ -72,7 +72,7 @@ builtinAuthenticationProfiles:
           Deprecated as of Dapr 1.17. Use 'secretKey' instead if using AWS IAM.
           If both fields are set, then 'secretKey' value will be used.
           The secret key associated with the access key.
-        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
+        example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 authenticationProfiles:
   - title: "Connection string"
     description: "Authenticate using a Connection String"
